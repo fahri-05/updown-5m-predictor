@@ -1,0 +1,15 @@
+node_modules/
+dist/
+data/
+.env
+.env.local
+*.log
+coverage/
+.venv/
+venv/
+__pycache__/
+*.pyc
+ml/checkpoints/
+*.pt
+*.joblib
+
