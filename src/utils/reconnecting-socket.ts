@@ -106,24 +106,17 @@ export class ReconnectingSocket {
     const ws = this.ws;
     this.ws = null;
     if (ws) {
-      const closed = new Promise<void>((resolve) => {
-        ws.once("close", () => resolve());
-        ws.once("error", () => resolve());
-      });
+      ws.removeAllListeners();
       try {
         ws.close(1000, "collector shutdown");
       } catch {
         /* already closing */
       }
-      const safety = setTimeout(() => {
-        try {
-          ws.terminate();
-        } catch {
-          /* noop */
-        }
-      }, 1500);
-      closed.then(() => clearTimeout(safety));
-      await closed;
+      try {
+        ws.terminate();
+      } catch {
+        /* noop */
+      }
     }
     this.status = "closed";
   }
@@ -133,6 +126,7 @@ export class ReconnectingSocket {
     const ws = this.ws;
     this.ws = null;
     if (ws) {
+      ws.removeAllListeners();
       try {
         ws.terminate();
       } catch {
@@ -171,15 +165,23 @@ export class ReconnectingSocket {
     }
     this.ws = ws;
 
-    ws.on("open", () => this.handleOpen());
-    ws.on("message", (data: RawData) => this.handleMessage(data));
+    ws.on("open", () => {
+      if (this.ws !== ws) return; // stale socket — ignore
+      this.handleOpen();
+    });
+    ws.on("message", (data: RawData) => {
+      if (this.ws !== ws) return; // stale socket — ignore
+      this.handleMessage(data);
+    });
     ws.on("error", (err) => {
+      if (this.ws !== ws) return;
       this.opts.logger.debug(`socket error: ${err.message}`);
       this.opts.onError?.(err as Error);
     });
-    ws.on("close", (code: number, reason: Buffer) =>
-      this.handleClose(code, reason.toString()),
-    );
+    ws.on("close", (code: number, reason: Buffer) => {
+      if (this.ws !== ws) return; // stale socket — ignore, already superseded
+      this.handleClose(code, reason.toString());
+    });
   }
 
   private handleOpen(): void {
