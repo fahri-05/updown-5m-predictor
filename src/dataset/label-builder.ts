@@ -17,6 +17,8 @@ export interface WindowLabelInput {
   windowEndMs: number;
   snapshots?: MarketSnapshot[];
   btcEvents?: BtcMarketEvent[];
+  /** Maximum acceptable distance in ms from snapshot to window boundary (default 60_000) */
+  maxBoundaryToleranceMs?: number;
   /** Optional Gamma event/market metadata if querying resolved historical markets */
   gammaEventMetadata?: {
     finalPrice?: number;
@@ -131,43 +133,49 @@ export class ResolutionLabelBuilder implements LabelBuilder {
       }
     }
 
-    // Prefer Chainlink (resolution source) if available at both boundaries
+    const maxTol = input.maxBoundaryToleranceMs ?? 60_000;
+
+    // Prefer Chainlink (resolution source) if available at both boundaries within tolerance
     if (startClPrice !== undefined && endClPrice !== undefined) {
-      const isUp = endClPrice >= startClPrice;
-      const priceDiff = endClPrice - startClPrice;
-      return {
-        slug,
-        windowStartMs,
-        windowEndMs,
-        label: isUp ? "UP" : "DOWN",
-        target: isUp ? 1 : 0,
-        startPrice: startClPrice,
-        endPrice: endClPrice,
-        priceDiff,
-        priceChangePct: startClPrice > 0 ? (priceDiff / startClPrice) * 100 : 0,
-        ruleId: "chainlink_start_end",
-      };
+      if (startClDist <= maxTol && endClDist <= maxTol) {
+        const isUp = endClPrice >= startClPrice;
+        const priceDiff = endClPrice - startClPrice;
+        return {
+          slug,
+          windowStartMs,
+          windowEndMs,
+          label: isUp ? "UP" : "DOWN",
+          target: isUp ? 1 : 0,
+          startPrice: startClPrice,
+          endPrice: endClPrice,
+          priceDiff,
+          priceChangePct: startClPrice > 0 ? (priceDiff / startClPrice) * 100 : 0,
+          ruleId: "chainlink_start_end",
+        };
+      }
     }
 
-    // Fallback to Binance spot BTC price
+    // Fallback to Binance spot BTC price within tolerance
     if (startBtcPrice !== undefined && endBtcPrice !== undefined) {
-      const isUp = endBtcPrice >= startBtcPrice;
-      const priceDiff = endBtcPrice - startBtcPrice;
-      return {
-        slug,
-        windowStartMs,
-        windowEndMs,
-        label: isUp ? "UP" : "DOWN",
-        target: isUp ? 1 : 0,
-        startPrice: startBtcPrice,
-        endPrice: endBtcPrice,
-        priceDiff,
-        priceChangePct: startBtcPrice > 0 ? (priceDiff / startBtcPrice) * 100 : 0,
-        ruleId: "binance_start_end",
-      };
+      if (startBtcDist <= maxTol && endBtcDist <= maxTol) {
+        const isUp = endBtcPrice >= startBtcPrice;
+        const priceDiff = endBtcPrice - startBtcPrice;
+        return {
+          slug,
+          windowStartMs,
+          windowEndMs,
+          label: isUp ? "UP" : "DOWN",
+          target: isUp ? 1 : 0,
+          startPrice: startBtcPrice,
+          endPrice: endBtcPrice,
+          priceDiff,
+          priceChangePct: startBtcPrice > 0 ? (priceDiff / startBtcPrice) * 100 : 0,
+          ruleId: "binance_start_end",
+        };
+      }
     }
 
-    throw new Error(`insufficient price data to compute resolution label for window ${slug}`);
+    throw new Error(`insufficient price data or incomplete window to compute resolution label for window ${slug}`);
   }
 
   private resolveFromEvents(input: WindowLabelInput): WindowLabel {

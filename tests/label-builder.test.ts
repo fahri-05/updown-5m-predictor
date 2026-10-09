@@ -134,4 +134,22 @@ describe("ResolutionLabelBuilder", () => {
     expect(label.target).toBe(0);
     expect(label.ruleId).toBe("chainlink_start_end");
   });
+
+  it("throws error for incomplete window exceeding boundary tolerance", () => {
+    // Snapshots only exist for first 60 seconds of a 300-second window
+    const snaps = [
+      mockSnapshot(1789200000000, 70000, 70000),
+      mockSnapshot(1789200060000, 70050, 70050),
+    ];
+
+    expect(() =>
+      labelBuilder.buildLabel({
+        slug: "btc-updown-5m-1789200000",
+        windowStartMs: 1789200000000,
+        windowEndMs: 1789200300000, // 240s gap to last snapshot
+        snapshots: snaps,
+        maxBoundaryToleranceMs: 60_000,
+      }),
+    ).toThrow(/incomplete window/);
+  });
 });

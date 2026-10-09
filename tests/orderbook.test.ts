@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { LevelBook } from "../src/collectors/polymarket/orderbook.js";
+import { MarketState } from "../src/engine/market-state.js";
 import type { PolymarketOrderBookLevel } from "../src/types/market.js";
 
 const levels = (prices: [number, number][]): PolymarketOrderBookLevel[] =>
@@ -85,5 +86,39 @@ describe("LevelBook", () => {
       "bids",
     );
     expect(book.depth(3, "bids")).toBe(600);
+  });
+
+  it("MarketState applies both bids and asks snapshot arrays symmetrically", () => {
+    const state = new MarketState();
+    state.applyPolymarketEvent({
+      type: "book",
+      timestampUtc: new Date().toISOString(),
+      timestampMs: 1000,
+      marketId: "0xcond",
+      tokenId: "upToken",
+      outcome: "UP",
+      bidPrice: 0.52,
+      askPrice: 0.54,
+      bids: [
+        { price: 0.52, size: 100 },
+        { price: 0.51, size: 200 },
+      ],
+      asks: [
+        { price: 0.54, size: 150 },
+        { price: 0.55, size: 250 },
+      ],
+      source: "polymarket",
+    });
+
+    const side = state.sideSnapshot();
+    expect(side.up.bid).toBe(0.52);
+    expect(side.up.ask).toBe(0.54);
+    expect(side.up.bidSize).toBe(100);
+    expect(side.up.askSize).toBe(150);
+
+    const snap = state.snapshot(1000, false);
+    expect(snap.sequence).toBe(0); // sequence not incremented when incrementSequence is false
+    const snap2 = state.snapshot(1000, true);
+    expect(snap2.sequence).toBe(1); // incremented
   });
 });

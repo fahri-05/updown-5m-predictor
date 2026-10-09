@@ -177,14 +177,22 @@ def train_neural_network(
                 best_model_path,
             )
 
-    # Test phase using the best checkpoint
+    # Test phase using the best checkpoint (un-shuffled loader to ensure row-level alignment)
     print("\n--- Final Evaluation on Test Set ---")
     if best_model_path.exists():
         checkpoint = torch.load(best_model_path, map_location=device, weights_only=True)
         model.load_state_dict(checkpoint["model_state"])
 
-    eval_loader = test_loader if test_loader else train_loader
+    X_eval = data["X_test"] if test_loader else data["X_train"]
+    y_eval_arr = data["y_test"] if test_loader else data["y_train"]
     split_name = "Test" if test_loader else "Train"
+
+    eval_dataset = torch.utils.data.TensorDataset(
+        torch.tensor(X_eval, dtype=torch.float32),
+        torch.tensor(y_eval_arr, dtype=torch.float32).unsqueeze(1),
+    )
+    eval_loader = torch.utils.data.DataLoader(eval_dataset, batch_size=batch_size, shuffle=False)
+
     test_loss, test_acc, test_auc, test_brier = evaluate_model(
         model, eval_loader, criterion, device
     )

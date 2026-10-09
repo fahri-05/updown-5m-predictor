@@ -67,30 +67,25 @@ export class MarketState {
   }
 
   applyPolymarketEvent(event: PolymarketMarketEvent): void {
-    if (event.outcome === "UP") {
-      if (event.type === "trade") {
-        if (event.tradePrice !== undefined) this.upLastTrade = event.tradePrice;
-      } else {
-        if (event.bidPrice !== undefined || event.askPrice !== undefined) {
-          if (event.bidPrice !== undefined) this.upBook.apply(event.bidPrice, event.bidSize ?? 0, "BUY");
-          if (event.askPrice !== undefined) this.upBook.apply(event.askPrice, event.askSize ?? 0, "SELL");
-        } else if (Array.isArray(event.bids)) {
-          this.upBook.replace(event.bids, "bids");
-        }
-        if (Array.isArray(event.asks)) this.upBook.replace(event.asks, "asks");
-      }
-    } else if (event.outcome === "DOWN") {
-      if (event.type === "trade") {
-        if (event.tradePrice !== undefined) this.downLastTrade = event.tradePrice;
-      } else {
-        if (event.bidPrice !== undefined || event.askPrice !== undefined) {
-          if (event.bidPrice !== undefined) this.downBook.apply(event.bidPrice, event.bidSize ?? 0, "BUY");
-          if (event.askPrice !== undefined) this.downBook.apply(event.askPrice, event.askSize ?? 0, "SELL");
-        } else if (Array.isArray(event.bids)) {
-          this.downBook.replace(event.bids, "bids");
-        }
-        if (Array.isArray(event.asks)) this.downBook.replace(event.asks, "asks");
-      }
+    const isUp = event.outcome === "UP";
+    const isDown = event.outcome === "DOWN";
+    if (!isUp && !isDown) return;
+
+    const book = isUp ? this.upBook : this.downBook;
+
+    if (event.type === "trade") {
+      if (isUp && event.tradePrice !== undefined) this.upLastTrade = event.tradePrice;
+      if (isDown && event.tradePrice !== undefined) this.downLastTrade = event.tradePrice;
+      return;
+    }
+
+    if (Array.isArray(event.bids)) book.replace(event.bids, "bids");
+    if (Array.isArray(event.asks)) book.replace(event.asks, "asks");
+
+    // Only apply discrete price updates if not a bulk book snapshot replacement
+    if (!Array.isArray(event.bids) && !Array.isArray(event.asks)) {
+      if (event.bidPrice !== undefined) book.apply(event.bidPrice, event.bidSize ?? 0, "BUY");
+      if (event.askPrice !== undefined) book.apply(event.askPrice, event.askSize ?? 0, "SELL");
     }
   }
 
@@ -134,12 +129,12 @@ export class MarketState {
     };
   }
 
-  snapshot(now: number = nowMs()): MarketSnapshot {
+  snapshot(now: number = nowMs(), incrementSequence = true): MarketSnapshot {
     const side = this.sideSnapshot();
     const windowEnd = this.meta?.windowEndMs;
     const secondsRemaining =
       windowEnd !== undefined ? Math.max(0, Math.floor((windowEnd - now) / 1000)) : undefined;
-    this.sequence += 1;
+    if (incrementSequence) this.sequence += 1;
     return {
       timestampUtc: isoUtc(now),
       timestampMs: now,

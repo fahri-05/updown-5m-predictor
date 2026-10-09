@@ -34,7 +34,7 @@ export class Stats {
   }
 
   report(): void {
-    const snap = this.deps.marketState.snapshot();
+    const snap = this.deps.marketState.snapshot(undefined, false);
     const health = this.deps.getHealth();
     const parts = [
       `events/s=${this.deps.getEventsPerSec()?.toFixed(1)}`,

@@ -135,6 +135,9 @@ if (config.chainlinkEnabled) {
   flushTimer.unref?.();
 // ---- Stats -----------------------------------------------------------------------
   let eventCount = 0;
+  let lastEventCount = 0;
+  let lastSamples = 0;
+  let lastStatsTimeMs = Date.now();
   const stats = new Stats({
     logger: logger.child("stats"),
     intervalMs: config.statsIntervalMs,
@@ -146,8 +149,23 @@ if (config.chainlinkEnabled) {
       return h;
     },
     getMarketSlug: () => (marketManager ? marketManager.currentMarket?.slug ?? null : null),
-    getSamplesPerSec: () => snapshotEngine.getSamples() / Math.max(1, config.statsIntervalMs / 1000),
-    getEventsPerSec: () => eventCount / Math.max(1, config.statsIntervalMs / 1000),
+    getSamplesPerSec: () => {
+      const now = Date.now();
+      const dt = Math.max(0.001, (now - lastStatsTimeMs) / 1000);
+      const cur = snapshotEngine.getSamples();
+      const rate = (cur - lastSamples) / dt;
+      lastSamples = cur;
+      return rate;
+    },
+    getEventsPerSec: () => {
+      const now = Date.now();
+      const dt = Math.max(0.001, (now - lastStatsTimeMs) / 1000);
+      const cur = eventCount;
+      const rate = (cur - lastEventCount) / dt;
+      lastEventCount = cur;
+      lastStatsTimeMs = now;
+      return rate;
+    },
     getSecondsRemaining: () => {
       const m = marketManager?.currentMarket;
       if (!m) return undefined;
