@@ -136,8 +136,9 @@ if (config.chainlinkEnabled) {
 // ---- Stats -----------------------------------------------------------------------
   let eventCount = 0;
   let lastEventCount = 0;
+  let lastEventsTimeMs = Date.now();
   let lastSamples = 0;
-  let lastStatsTimeMs = Date.now();
+  let lastSamplesTimeMs = Date.now();
   const stats = new Stats({
     logger: logger.child("stats"),
     intervalMs: config.statsIntervalMs,
@@ -151,19 +152,20 @@ if (config.chainlinkEnabled) {
     getMarketSlug: () => (marketManager ? marketManager.currentMarket?.slug ?? null : null),
     getSamplesPerSec: () => {
       const now = Date.now();
-      const dt = Math.max(0.001, (now - lastStatsTimeMs) / 1000);
+      const dt = Math.max(0.001, (now - lastSamplesTimeMs) / 1000);
       const cur = snapshotEngine.getSamples();
       const rate = (cur - lastSamples) / dt;
       lastSamples = cur;
+      lastSamplesTimeMs = now;
       return rate;
     },
     getEventsPerSec: () => {
       const now = Date.now();
-      const dt = Math.max(0.001, (now - lastStatsTimeMs) / 1000);
+      const dt = Math.max(0.001, (now - lastEventsTimeMs) / 1000);
       const cur = eventCount;
       const rate = (cur - lastEventCount) / dt;
       lastEventCount = cur;
-      lastStatsTimeMs = now;
+      lastEventsTimeMs = now;
       return rate;
     },
     getSecondsRemaining: () => {
